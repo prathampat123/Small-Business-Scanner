@@ -10,8 +10,23 @@ This tool scans a geographic area (user-defined location + radius) to find small
 
 ### 1. Area Scanner
 - User inputs a location (city, address, or zip code) and a radius in miles
+- Optionally filters by one of four business categories (see Category Search below)
 - Calls the Google Places API (New) to return all businesses within that radius
 - Pulls: business name, address, phone number, website URL, business category, rating, review count, and top reviews
+
+### 1a. Category Search
+Businesses can be filtered by one of four high-level categories. Each maps to a set of Google Places API types:
+
+| Category slug | Label | Google Places types |
+|---|---|---|
+| `local_trades` | Local Trades | plumber, electrician, roofing_contractor, general_contractor, hvac_contractor, landscaper, painter |
+| `professional_services` | Professional Services | lawyer, accounting, insurance_agency, real_estate_agency, financial_planner |
+| `medical_healthcare` | Medical / Healthcare | dentist, physiotherapist, doctor, chiropractor, optometrist, hospital |
+| `niche_retail` | Niche Retail | clothing_store, jewelry_store, shoe_store, book_store, toy_store, sporting_goods_store, pet_store, gift_shop, florist, art_gallery |
+
+- Pass `"category": "<slug>"` in the `POST /scan` request body to filter by category
+- If `included_types` is also supplied, it takes precedence over `category`
+- `GET /categories` returns all categories with labels and descriptions for UI use
 
 ### 2. Website Scorer
 - For each business returned, checks their website URL (if any)
@@ -24,12 +39,10 @@ This tool scans a geographic area (user-defined location + radius) to find small
   - **Not a Lead** — modern, mobile-friendly, recently updated site
 - Claude returns: `{"lead_status": "hot|warm|none", "reason": "...", "signals": [...]}`
 
-### 3. Lead Dashboard (Streamlit)
-- Interactive map (Folium/Pydeck) showing color-coded business pins by lead status
-- Filterable table: filter by category, lead status, rating, review count
-- "Run Scan" form: input location + radius + optional category filter
-- Scan history: past scans are saved and can be re-opened
-- Each business row is clickable to open the full lead detail view
+### 3. Lead Dashboard (Planned)
+- The Streamlit dashboard and React frontend have been removed; a new dashboard is to be built
+- Should include: interactive map with color-coded pins by lead status, filterable business table, scan history, and per-business detail/proposal view
+- Consumes the FastAPI backend at `http://localhost:8000`
 
 ### 4. Website Proposal Generator (Claude)
 - For any Hot or Warm Lead, user clicks "Generate Proposal"
@@ -54,7 +67,7 @@ This tool scans a geographic area (user-defined location + radius) to find small
 |---|---|---|
 | Language | Python 3.10+ | User's environment; best Claude + data tooling |
 | Backend API | FastAPI | Async, clean routing, easy to test |
-| Dashboard | Streamlit | Pure Python, no Node.js required, fast to build |
+| Dashboard | TBD (Streamlit removed) | Previous Streamlit + React frontends removed; replacement to be decided |
 | Database | SQLite via SQLAlchemy | Zero-config, local-first, easy to migrate later |
 | AI | Claude API (`claude-sonnet-4-6`) | Website scoring + proposal generation |
 | Business Data | Google Places API (New) | Best coverage, reviews, website URLs, categories |
@@ -76,16 +89,11 @@ Small-Business-Website-Scanner/
 ├── requirements.txt
 │
 ├── backend/
-│   ├── main.py                # FastAPI app — mounts all routers
-│   ├── scanner.py             # Google Places API integration
+│   ├── main.py                # FastAPI app — all routes
+│   ├── scanner.py             # Google Places API integration + BUSINESS_CATEGORIES map
 │   ├── analyzer.py            # Website fetching + Claude website scoring
 │   ├── proposal.py            # Claude proposal generation
-│   ├── models.py              # SQLAlchemy models (Scan, Business, Proposal)
-│   ├── database.py            # DB connection + session setup
-│   └── schemas.py             # Pydantic request/response models
-│
-├── dashboard/
-│   └── app.py                 # Streamlit dashboard (map, table, proposal viewer)
+│   └── database.py            # Airtable table helpers
 │
 └── tests/
     ├── test_scanner.py
@@ -114,6 +122,8 @@ AIRTABLE_BASE_ID=        # ID of the Airtable base (starts with "app...")
 - Required fields mask: `places.displayName,places.formattedAddress,places.websiteUri,places.rating,places.userRatingCount,places.types,places.nationalPhoneNumber,places.reviews,places.location`
 - Max results per request: 20 (paginate for more)
 - Radius is in meters (convert from miles: miles × 1609.34)
+- `includedTypes` accepts up to 50 type strings; results match any of them
+- Category slugs are resolved to `includedTypes` lists in `scanner.py::BUSINESS_CATEGORIES`
 
 ### Claude API
 - Model: `claude-sonnet-4-6`
@@ -148,11 +158,9 @@ AIRTABLE_BASE_ID=        # ID of the Airtable base (starts with "app...")
 ## Development Notes
 
 - Run the FastAPI backend with: `uvicorn backend.main:app --reload`
-- Run the Streamlit dashboard with: `streamlit run dashboard/app.py`
-- The dashboard calls the FastAPI backend via `http://localhost:8000`
-- SQLite database file is `scanner.db` in the project root — not committed
-- All new code goes to GitHub via commits to `master` branch
-- Keep all API keys out of code — read from `.env` using `python-dotenv`
+- API is available at `http://localhost:8000`; interactive docs at `http://localhost:8000/docs`
+- No frontend/dashboard exists yet — the Streamlit and React UIs were removed
+- All API keys must stay out of code — read from `.env` using `python-dotenv`
 
 ---
 
