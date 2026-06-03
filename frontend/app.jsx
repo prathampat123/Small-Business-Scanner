@@ -58,6 +58,11 @@ function Sidebar({ view, setView, counts }) {
 function Topbar({ search, setSearch, onScan, area }) {
   return (
     <header className="topbar">
+      <div className="tb-brand">
+        <div className="brand-mark"><window.Icon name="radar" size={17} /></div>
+        <div className="brand-name">Prospector<span className="brand-sub">lead radar</span></div>
+      </div>
+      <div className="tb-divider"></div>
       <div className="tb-left">
         <div className="tb-area">
           <span className="tb-area-label">Active area</span>

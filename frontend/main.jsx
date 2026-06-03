@@ -132,7 +132,6 @@ function App() {
 
   return (
     <div className={`app theme-${t.theme} density-${t.density}`} style={accentStyle}>
-      <window.Dash.Sidebar view={view} setView={setView} counts={counts} />
       <div className="main">
         <window.Dash.Topbar search={search} setSearch={setSearch} onScan={() => setScanOpen(true)} area={area || "No scans yet"} />
         <div className="content">
