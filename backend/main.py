@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -12,6 +14,13 @@ from backend.database import scans_table, businesses_table, proposals_table
 load_dotenv()
 
 app = FastAPI(title="Small Business Scanner API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class ScanRequest(BaseModel):
@@ -120,3 +129,9 @@ def list_scans():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# Serve the frontend — must be LAST so API routes take precedence
+_frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+if os.path.exists(_frontend_dir):
+    app.mount("/", StaticFiles(directory=_frontend_dir, html=True), name="frontend")

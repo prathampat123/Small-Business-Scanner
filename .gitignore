@@ -7,3 +7,4 @@ venv/
 *.db
 *.sqlite
 .DS_Store
+*.output
