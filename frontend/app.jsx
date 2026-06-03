@@ -320,14 +320,25 @@ function LeadDetail({ lead, onClose, contacted, toggleContacted }) {
 }
 
 /* ---------- SCAN MODAL ---------- */
-const SCAN_CATS = ["Restaurants", "Retail", "Home services", "Auto", "Health", "Beauty", "Professional"];
+const SCAN_CATS = [
+  { label: "Any / All",      value: "" },
+  { label: "Restaurants",    value: "restaurants" },
+  { label: "Retail",         value: "retail" },
+  { label: "Contractors",    value: "contractors" },
+  { label: "Real Estate",    value: "real_estate" },
+  { label: "Law Firms",      value: "law_firms" },
+  { label: "Finance",        value: "finance" },
+  { label: "Health",         value: "health" },
+  { label: "Beauty",         value: "beauty" },
+  { label: "Auto",           value: "auto" },
+  { label: "Home Services",  value: "home_services" },
+];
 
 function ScanModal({ open, onClose, onRun, scanning, progress, found }) {
   const [areaName, setAreaName] = useState("");
   const [radius, setRadius]     = useState(2);
-  const [active, setActive]     = useState(new Set(["Restaurants", "Home services", "Auto", "Beauty"]));
+  const [category, setCategory] = useState("");
   if (!open) return null;
-  const toggle = (c) => { const n = new Set(active); n.has(c) ? n.delete(c) : n.add(c); setActive(n); };
   return (
     <div className="modal-scrim" onClick={!scanning ? onClose : undefined}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -347,11 +358,11 @@ function ScanModal({ open, onClose, onRun, scanning, progress, found }) {
                 <input type="range" min="0.5" max="10" step="0.5" value={radius} onChange={(e) => setRadius(+e.target.value)} className="range" />
               </label>
               <div className="field">
-                <span>Categories (informational)</span>
+                <span>Business type</span>
                 <div className="cat-chips">
                   {SCAN_CATS.map((c) => (
-                    <button key={c} className={"cat-chip" + (active.has(c) ? " on" : "")} onClick={() => toggle(c)}>
-                      {active.has(c) && <window.Icon name="check" size={12} />}{c}
+                    <button key={c.value} className={"cat-chip" + (category === c.value ? " on" : "")} onClick={() => setCategory(c.value)}>
+                      {category === c.value && <window.Icon name="check" size={12} />}{c.label}
                     </button>
                   ))}
                 </div>
@@ -360,7 +371,7 @@ function ScanModal({ open, onClose, onRun, scanning, progress, found }) {
             </div>
             <div className="modal-foot">
               <button className="btn-ghost" onClick={onClose}>Cancel</button>
-              <button className="btn-primary" onClick={() => { if (areaName.trim()) onRun(areaName.trim(), radius, active); }}>
+              <button className="btn-primary" onClick={() => { if (areaName.trim()) onRun(areaName.trim(), radius, category); }}>
                 <window.Icon name="radar" size={16} /> Run scan
               </button>
             </div>

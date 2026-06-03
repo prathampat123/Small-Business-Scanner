@@ -77,7 +77,7 @@ function App() {
     }, 800);
 
     try {
-      const results = await window.runScanAPI(name, radius);
+      const results = await window.runScanAPI(name, radius, cats);
 
       // Stop fake progress
       clearInterval(fakeTimer.current);

@@ -1,6 +1,6 @@
 // data.jsx — API integration. Replaces mock data with real FastAPI backend calls.
 
-const API_BASE = "";  // same origin — served by FastAPI on port 8000
+const API_BASE = "http://localhost:8080";
 
 // Lead status mapping: backend → dashboard
 const STATUS_MAP = {
@@ -58,13 +58,17 @@ async function fetchBusinesses(params = {}) {
   return data.map(mapApiLead);
 }
 
-async function runScanAPI(location, radiusMiles, maxResults = 20) {
+async function runScanAPI(location, radiusMiles, category = "", maxResults = 20) {
   const r = await fetch(`${API_BASE}/scan`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ location, radius_miles: radiusMiles, max_results: maxResults }),
+    body: JSON.stringify({ location, radius_miles: radiusMiles, max_results: maxResults, category }),
   });
-  if (!r.ok) throw new Error("Scan failed — check your API keys and try again");
+  if (!r.ok) {
+    let msg = "Scan failed";
+    try { const e = await r.json(); msg = e.detail || msg; } catch {}
+    throw new Error(msg);
+  }
   const data = await r.json();
   return (data.businesses || []).map(mapApiLead);
 }

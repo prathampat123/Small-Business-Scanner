@@ -18,7 +18,22 @@ FIELD_MASK = ",".join([
 ])
 
 
-def search_businesses(lat: float, lng: float, radius_miles: float, max_results: int = 20) -> list[dict]:
+# Maps user-friendly category labels to Google Places API types
+CATEGORY_TYPES = {
+    "restaurants":   ["restaurant", "cafe", "bakery", "bar", "meal_takeaway"],
+    "retail":        ["clothing_store", "shoe_store", "jewelry_store", "home_goods_store", "furniture_store", "book_store", "gift_shop"],
+    "contractors":   ["general_contractor", "plumber", "electrician", "roofing_contractor", "painter"],
+    "real_estate":   ["real_estate_agency"],
+    "law_firms":     ["lawyer"],
+    "finance":       ["accounting", "insurance_agency", "finance"],
+    "health":        ["doctor", "dentist", "physiotherapist", "optician", "pharmacy"],
+    "beauty":        ["hair_care", "beauty_salon", "spa", "nail_salon", "barber_shop"],
+    "auto":          ["car_repair", "car_dealer", "car_wash"],
+    "home_services": ["locksmith", "moving_company", "storage"],
+}
+
+
+def search_businesses(lat: float, lng: float, radius_miles: float, max_results: int = 20, category: str = "") -> list[dict]:
     radius_meters = radius_miles * 1609.34
     headers = {
         "Content-Type": "application/json",
@@ -34,6 +49,8 @@ def search_businesses(lat: float, lng: float, radius_miles: float, max_results: 
         },
         "maxResultCount": min(max_results, 20),
     }
+    if category and category in CATEGORY_TYPES:
+        body["includedTypes"] = CATEGORY_TYPES[category]
 
     with httpx.Client(timeout=15) as client:
         response = client.post(PLACES_API_URL, json=body, headers=headers)
@@ -44,16 +61,16 @@ def search_businesses(lat: float, lng: float, radius_miles: float, max_results: 
 
 
 def geocode_location(query: str) -> tuple[float, float]:
-    url = "https://maps.googleapis.com/maps/api/geocode/json"
-    params = {"address": query, "key": os.environ["GOOGLE_PLACES_API_KEY"]}
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {"q": query, "format": "json", "limit": 1}
+    headers = {"User-Agent": "SmallBusinessScanner/1.0"}
     with httpx.Client(timeout=10) as client:
-        response = client.get(url, params=params)
+        response = client.get(url, params=params, headers=headers)
         response.raise_for_status()
-    results = response.json().get("results", [])
+    results = response.json()
     if not results:
         raise ValueError(f"Could not geocode location: {query}")
-    loc = results[0]["geometry"]["location"]
-    return loc["lat"], loc["lng"]
+    return float(results[0]["lat"]), float(results[0]["lon"])
 
 
 def _parse_place(place: dict) -> dict:

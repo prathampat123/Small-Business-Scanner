@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+import traceback
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -13,9 +14,13 @@ from backend.analyzer import analyze_website
 from backend.proposal import generate_proposal
 from backend.database import scans_table, businesses_table, proposals_table
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 app = FastAPI(title="Small Business Scanner API")
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"detail": traceback.format_exc()})
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,43 +34,59 @@ class ScanRequest(BaseModel):
     location: str
     radius_miles: float = 5.0
     max_results: int = 20
+    category: str = ""  # e.g. "law_firms", "restaurants", "contractors"
 
 
 @app.post("/scan")
 def run_scan(req: ScanRequest):
-    lat, lng = geocode_location(req.location)
-    businesses = search_businesses(lat, lng, req.radius_miles, req.max_results)
+    try:
+        lat, lng = geocode_location(req.location)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Geocoding failed: {e}")
+    try:
+        businesses = search_businesses(lat, lng, req.radius_miles, req.max_results, req.category)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Places API failed: {e}")
 
-    scan_record = scans_table().create({
-        "Location Query": req.location,
-        "Lat": lat,
-        "Lng": lng,
-        "Radius Miles": req.radius_miles,
-        "Total Results": len(businesses),
-        "Created At": datetime.utcnow().isoformat(),
-    })
-    scan_id = scan_record["id"]
+    scan_id = None
+    try:
+        scan_record = scans_table().create({
+            "Location Query": req.location,
+            "Lat": lat,
+            "Lng": lng,
+            "Radius Miles": req.radius_miles,
+            "Total Results": len(businesses),
+            "Created At": datetime.utcnow().isoformat(),
+        })
+        scan_id = scan_record["id"]
+    except Exception:
+        pass  # Airtable save optional — schema may not be set up yet
 
     saved_businesses = []
     for biz in businesses:
         score = analyze_website(biz.get("website_url", ""))
-        record = businesses_table().create({
-            "Name": biz["name"],
-            "Address": biz["address"],
-            "Phone": biz["phone"],
-            "Website URL": biz.get("website_url", ""),
-            "Category": biz["category"],
-            "Rating": biz["rating"],
-            "Review Count": biz["review_count"],
-            "Lead Status": score["lead_status"],
-            "Website Signals": ", ".join(score.get("signals", [])),
-            "Lat": biz["lat"],
-            "Lng": biz["lng"],
-            "Scan ID": scan_id,
-        })
+        biz_id = None
+        try:
+            record = businesses_table().create({
+                "Name": biz["name"],
+                "Address": biz["address"],
+                "Phone": biz["phone"],
+                "Website URL": biz.get("website_url", ""),
+                "Category": biz["category"],
+                "Rating": biz["rating"],
+                "Review Count": biz["review_count"],
+                "Lead Status": score["lead_status"],
+                "Website Signals": ", ".join(score.get("signals", [])),
+                "Lat": biz["lat"],
+                "Lng": biz["lng"],
+                "Scan ID": scan_id or "",
+            })
+            biz_id = record["id"]
+        except Exception:
+            pass  # Airtable save optional
         saved_businesses.append({
             **biz,
-            "id": record["id"],
+            "id": biz_id or str(hash(biz["name"] + biz["address"])),
             "lead_status": score["lead_status"],
             "reason": score["reason"],
             "signals": score.get("signals", []),
