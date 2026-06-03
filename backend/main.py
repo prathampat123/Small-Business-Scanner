@@ -1,7 +1,9 @@
 import os
+from pathlib import Path
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -132,6 +134,11 @@ def health():
 
 
 # Serve the frontend — must be LAST so API routes take precedence
-_frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
-if os.path.exists(_frontend_dir):
-    app.mount("/", StaticFiles(directory=_frontend_dir, html=True), name="frontend")
+_frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+
+@app.get("/")
+def serve_root():
+    return FileResponse(str(_frontend_dir / "index.html"))
+
+if _frontend_dir.exists():
+    app.mount("/", StaticFiles(directory=str(_frontend_dir), html=False), name="static")
