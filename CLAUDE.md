@@ -13,8 +13,18 @@ This tool scans a geographic area (user-defined location + radius) to find small
 - Optionally filters by one of four business categories (see Category Search below)
 - Calls the Google Places API (New) to return all businesses within that radius
 - Pulls: business name, address, phone number, website URL, business category, rating, review count, and top reviews
+- Franchise businesses are automatically removed from results (see Franchise Filter below)
 
-### 1a. Category Search
+### 1a. Franchise Filter
+Franchise businesses are stripped from results automatically — they are not leads because they already have corporate-maintained websites.
+
+- Logic lives in `backend/franchise_filter.py`
+- `is_franchise(name)` returns `True` if the business name matches a known franchise brand (prefix match, case-insensitive) or contains a franchise location-number pattern (e.g. `Subway #1234`)
+- `filter_franchises(businesses)` applies the filter to the full results list; called at the end of `search_businesses()` in `scanner.py`
+- The known-franchise list (`KNOWN_FRANCHISES`) covers ~200 brands across all four target categories plus common food/fitness/hair chains
+- To add a new franchise: append its lowercase name to `KNOWN_FRANCHISES` in `franchise_filter.py`
+
+### 1b. Category Search
 Businesses can be filtered by one of four high-level categories. Each maps to a set of Google Places API types:
 
 | Category slug | Label | Google Places types |
@@ -27,6 +37,7 @@ Businesses can be filtered by one of four high-level categories. Each maps to a 
 - Pass `"category": "<slug>"` in the `POST /scan` request body to filter by category
 - If `included_types` is also supplied, it takes precedence over `category`
 - `GET /categories` returns all categories with labels and descriptions for UI use
+- Category-filtered scans still have franchise filtering applied
 
 ### 2. Website Scorer
 - For each business returned, checks their website URL (if any)
@@ -91,6 +102,7 @@ Small-Business-Website-Scanner/
 ├── backend/
 │   ├── main.py                # FastAPI app — all routes
 │   ├── scanner.py             # Google Places API integration + BUSINESS_CATEGORIES map
+│   ├── franchise_filter.py    # Known-franchise list + is_franchise() / filter_franchises()
 │   ├── analyzer.py            # Website fetching + Claude website scoring
 │   ├── proposal.py            # Claude proposal generation
 │   └── database.py            # Airtable table helpers

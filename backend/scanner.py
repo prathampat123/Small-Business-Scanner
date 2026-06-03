@@ -3,6 +3,8 @@ import math
 import httpx
 from dotenv import load_dotenv
 
+from backend.franchise_filter import filter_franchises
+
 load_dotenv()
 
 PLACES_API_URL = "https://places.googleapis.com/v1/places:searchNearby"
@@ -106,7 +108,8 @@ def search_businesses(
         response.raise_for_status()
 
     places = response.json().get("places", [])
-    return [_parse_place(p) for p in places]
+    businesses = [_parse_place(p) for p in places]
+    return filter_franchises(businesses)
 
 
 def haversine_miles(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
