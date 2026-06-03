@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from backend.scanner import search_businesses, geocode_location, haversine_miles
+from backend.scanner import search_businesses, geocode_location, haversine_miles, BUSINESS_CATEGORIES
 from backend.analyzer import analyze_website
 from backend.proposal import generate_proposal
 from backend.database import scans_table, businesses_table, proposals_table
@@ -29,10 +29,33 @@ class ScanRequest(BaseModel):
     max_results: int = 20
     bounds: BoundsModel | None = None
     included_types: list[str] | None = None
+    # High-level category slug (local_trades, professional_services,
+    # medical_healthcare, niche_retail). Resolved to included_types at
+    # scan time; ignored when included_types is also supplied.
+    category: str | None = None
+
+
+@app.get("/categories")
+def list_categories():
+    return [
+        {"id": k, "label": v["label"], "description": v["description"]}
+        for k, v in BUSINESS_CATEGORIES.items()
+    ]
 
 
 @app.post("/scan")
 def run_scan(req: ScanRequest):
+    # Resolve category slug → included_types (unless caller provided raw types)
+    effective_types = req.included_types
+    if not effective_types and req.category:
+        cat = BUSINESS_CATEGORIES.get(req.category)
+        if cat is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown category '{req.category}'. Valid options: {list(BUSINESS_CATEGORIES)}",
+            )
+        effective_types = cat["types"]
+
     if req.bounds:
         b = req.bounds
         lat = (b.min_lat + b.max_lat) / 2
@@ -41,7 +64,7 @@ def run_scan(req: ScanRequest):
             haversine_miles(lat, lng, b.min_lat, b.min_lng),
             haversine_miles(lat, lng, b.max_lat, b.max_lng),
         )
-        businesses = search_businesses(lat, lng, radius_miles, req.max_results, req.included_types)
+        businesses = search_businesses(lat, lng, radius_miles, req.max_results, effective_types)
         businesses = [
             biz for biz in businesses
             if b.min_lat <= biz["lat"] <= b.max_lat and b.min_lng <= biz["lng"] <= b.max_lng
@@ -50,12 +73,12 @@ def run_scan(req: ScanRequest):
     elif req.lat is not None and req.lng is not None:
         lat, lng = req.lat, req.lng
         radius_miles = req.radius_miles
-        businesses = search_businesses(lat, lng, radius_miles, req.max_results, req.included_types)
+        businesses = search_businesses(lat, lng, radius_miles, req.max_results, effective_types)
         location_query = f"Pin ({lat:.4f}, {lng:.4f})"
     elif req.location:
         lat, lng = geocode_location(req.location)
         radius_miles = req.radius_miles
-        businesses = search_businesses(lat, lng, radius_miles, req.max_results, req.included_types)
+        businesses = search_businesses(lat, lng, radius_miles, req.max_results, effective_types)
         location_query = req.location
     else:
         raise HTTPException(status_code=400, detail="Provide location, lat/lng, or bounds")

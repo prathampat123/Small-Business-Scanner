@@ -6,6 +6,63 @@ from dotenv import load_dotenv
 load_dotenv()
 
 PLACES_API_URL = "https://places.googleapis.com/v1/places:searchNearby"
+
+# Maps user-facing category slugs → Google Places API type strings.
+# Types come from the Places API (New) supported-types table.
+BUSINESS_CATEGORIES: dict[str, dict] = {
+    "local_trades": {
+        "label": "Local Trades",
+        "description": "Plumbers, electricians, landscapers, roofers, and other trade contractors",
+        "types": [
+            "plumber",
+            "electrician",
+            "roofing_contractor",
+            "general_contractor",
+            "hvac_contractor",
+            "landscaper",
+            "painter",
+        ],
+    },
+    "professional_services": {
+        "label": "Professional Services",
+        "description": "Lawyers, accountants, consultants, and other professional offices",
+        "types": [
+            "lawyer",
+            "accounting",
+            "insurance_agency",
+            "real_estate_agency",
+            "financial_planner",
+        ],
+    },
+    "medical_healthcare": {
+        "label": "Medical / Healthcare",
+        "description": "Dentists, physical therapists, doctors, and family clinics",
+        "types": [
+            "dentist",
+            "physiotherapist",
+            "doctor",
+            "chiropractor",
+            "optometrist",
+            "hospital",
+        ],
+    },
+    "niche_retail": {
+        "label": "Niche Retail",
+        "description": "Boutiques, specialty shops, and independent retailers",
+        "types": [
+            "clothing_store",
+            "jewelry_store",
+            "shoe_store",
+            "book_store",
+            "toy_store",
+            "sporting_goods_store",
+            "pet_store",
+            "gift_shop",
+            "florist",
+            "art_gallery",
+        ],
+    },
+}
 FIELD_MASK = ",".join([
     "places.displayName",
     "places.formattedAddress",
