@@ -133,6 +133,11 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/config")
+def config():
+    return {"mapbox_token": os.getenv("MAPBOX_TOKEN", "")}
+
+
 # Serve the frontend — must be LAST so API routes take precedence
 _frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
 

@@ -1,14 +1,23 @@
-// map.jsx — real interactive map via Leaflet + CARTO tiles (no API key needed).
-// Pins are status-colored divIcons; selection/hover sync both ways with the table.
-const { useEffect: mE, useRef: mR } = React;
+// map.jsx — interactive map via Leaflet + Mapbox tiles.
+// Falls back to CARTO tiles if no Mapbox token is configured.
+const { useEffect: mE, useRef: mR, useState: mS } = React;
 
-function tileUrlFor(theme) {
+function tileUrlFor(theme, token) {
+  if (token) {
+    const style = theme === "daylight" ? "light-v11" : theme === "carbon" ? "dark-v11" : "dark-v11";
+    return `https://api.mapbox.com/styles/v1/mapbox/${style}/tiles/256/{z}/{x}/{y}@2x?access_token=${token}`;
+  }
   const dark = theme !== "daylight";
   return dark
     ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
     : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 }
-const TILE_OPTS = { maxZoom: 19, subdomains: "abcd", attribution: '© OpenStreetMap · © CARTO' };
+
+function tileOptsFor(token) {
+  return token
+    ? { maxZoom: 22, tileSize: 512, zoomOffset: -1, attribution: '© <a href="https://www.mapbox.com/">Mapbox</a> © <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' }
+    : { maxZoom: 19, subdomains: "abcd", attribution: '© OpenStreetMap · © CARTO' };
+}
 
 const MapPanel = ({ leads, selectedId, hoverId, onSelect, onHover, droppingIds, scanning, scanArea, theme }) => {
   const elRef = mR(null);
@@ -16,27 +25,37 @@ const MapPanel = ({ leads, selectedId, hoverId, onSelect, onHover, droppingIds, 
   const tileRef = mR(null);
   const markersRef = mR({});
   const didFit = mR(false);
+  const tokenRef = mR(null);
 
-  // init once
+  // fetch Mapbox token once on mount, then init map
   mE(() => {
-    const L = window.L;
-    if (mapRef.current || !L || !elRef.current) return;
-    const map = L.map(elRef.current, {
-      zoomControl: false, scrollWheelZoom: true, doubleClickZoom: true, dragging: true,
-      wheelPxPerZoomLevel: 90, wheelDebounceTime: 30, zoomSnap: 0.5,
-    }).setView([35.578, -82.589], 14);
-    map.attributionControl.setPrefix(false);
-    mapRef.current = map;
-    tileRef.current = L.tileLayer(tileUrlFor(theme), TILE_OPTS).addTo(map);
-    setTimeout(() => map.invalidateSize(), 220);
+    fetch("/config")
+      .then((r) => r.json())
+      .then((cfg) => { tokenRef.current = cfg.mapbox_token || ""; })
+      .catch(() => { tokenRef.current = ""; })
+      .finally(() => {
+        const L = window.L;
+        if (mapRef.current || !L || !elRef.current) return;
+        const token = tokenRef.current;
+        const map = L.map(elRef.current, {
+          zoomControl: false, scrollWheelZoom: true, doubleClickZoom: true, dragging: true,
+          wheelPxPerZoomLevel: 90, wheelDebounceTime: 30, zoomSnap: 0.5,
+        }).setView([35.578, -82.589], 14);
+        map.attributionControl.setPrefix(false);
+        mapRef.current = map;
+        tileRef.current = L.tileLayer(tileUrlFor(theme, token), tileOptsFor(token)).addTo(map);
+        setTimeout(() => map.invalidateSize(), 220);
+      });
   }, []);
 
   // swap tiles on theme change
   mE(() => {
     const map = mapRef.current, L = window.L;
     if (!map || !L) return;
+    const token = tokenRef.current;
+    if (token === null) return; // not yet loaded
     if (tileRef.current) map.removeLayer(tileRef.current);
-    tileRef.current = L.tileLayer(tileUrlFor(theme), TILE_OPTS).addTo(map);
+    tileRef.current = L.tileLayer(tileUrlFor(theme, token), tileOptsFor(token)).addTo(map);
   }, [theme]);
 
   // sync markers with leads
