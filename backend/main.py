@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from backend.scanner import search_businesses, geocode_location
+from backend.scanner import search_businesses, geocode_location, haversine_miles
 from backend.analyzer import analyze_website
 from backend.proposal import generate_proposal
 from backend.database import scans_table, businesses_table, proposals_table
@@ -25,22 +25,56 @@ app.add_middleware(
 )
 
 
+class BoundsModel(BaseModel):
+    min_lat: float
+    max_lat: float
+    min_lng: float
+    max_lng: float
+
+
 class ScanRequest(BaseModel):
-    location: str
+    location: str | None = None
+    lat: float | None = None
+    lng: float | None = None
     radius_miles: float = 5.0
     max_results: int = 20
+    bounds: BoundsModel | None = None
 
 
 @app.post("/scan")
 def run_scan(req: ScanRequest):
-    lat, lng = geocode_location(req.location)
-    businesses = search_businesses(lat, lng, req.radius_miles, req.max_results)
+    if req.bounds:
+        b = req.bounds
+        lat = (b.min_lat + b.max_lat) / 2
+        lng = (b.min_lng + b.max_lng) / 2
+        radius_miles = max(
+            haversine_miles(lat, lng, b.min_lat, b.min_lng),
+            haversine_miles(lat, lng, b.max_lat, b.max_lng),
+        )
+        businesses = search_businesses(lat, lng, radius_miles, req.max_results)
+        businesses = [
+            biz for biz in businesses
+            if b.min_lat <= biz["lat"] <= b.max_lat and b.min_lng <= biz["lng"] <= b.max_lng
+        ]
+        location_query = f"Rectangle ({lat:.4f}, {lng:.4f})"
+    elif req.lat is not None and req.lng is not None:
+        lat, lng = req.lat, req.lng
+        radius_miles = req.radius_miles
+        businesses = search_businesses(lat, lng, radius_miles, req.max_results)
+        location_query = f"Pin ({lat:.4f}, {lng:.4f})"
+    elif req.location:
+        lat, lng = geocode_location(req.location)
+        radius_miles = req.radius_miles
+        businesses = search_businesses(lat, lng, radius_miles, req.max_results)
+        location_query = req.location
+    else:
+        raise HTTPException(status_code=400, detail="Provide location, lat/lng, or bounds")
 
     scan_record = scans_table().create({
-        "Location Query": req.location,
+        "Location Query": location_query,
         "Lat": lat,
         "Lng": lng,
-        "Radius Miles": req.radius_miles,
+        "Radius Miles": radius_miles,
         "Total Results": len(businesses),
         "Created At": datetime.utcnow().isoformat(),
     })

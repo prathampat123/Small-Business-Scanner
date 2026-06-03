@@ -1,4 +1,5 @@
 import os
+import math
 import httpx
 from dotenv import load_dotenv
 
@@ -41,6 +42,15 @@ def search_businesses(lat: float, lng: float, radius_miles: float, max_results: 
 
     places = response.json().get("places", [])
     return [_parse_place(p) for p in places]
+
+
+def haversine_miles(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    R = 3958.8
+    d_lat = math.radians(lat2 - lat1)
+    d_lng = math.radians(lng2 - lng1)
+    a = (math.sin(d_lat / 2) ** 2
+         + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lng / 2) ** 2)
+    return R * 2 * math.asin(math.sqrt(a))
 
 
 def geocode_location(query: str) -> tuple[float, float]:
