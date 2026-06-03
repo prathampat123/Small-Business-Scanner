@@ -50,7 +50,7 @@ st.set_page_config(page_title="Small Business Scanner", layout="wide")
 st.title("Small Business Scanner")
 
 # Session state defaults
-for key, default in [("businesses", []), ("drawn_geometry", None)]:
+for key, default in [("businesses", []), ("drawn_geometry", None), ("scanned_types", [])]:
     if key not in st.session_state:
         st.session_state[key] = default
 
@@ -211,6 +211,7 @@ if geom:
                         "Lng": b.get("lng", 0),
                     })
                 st.session_state["businesses"] = normalized
+                st.session_state["scanned_types"] = selected_type_labels
                 st.success(f"Found {data['total']} businesses.")
                 st.rerun()
             except Exception as e:
@@ -223,6 +224,12 @@ if businesses:
     df = pd.DataFrame(businesses)
     if status_filter != "All" and "Lead Status" in df.columns:
         df = df[df["Lead Status"] == status_filter]
+
+    scanned_types = st.session_state.get("scanned_types", [])
+    if scanned_types:
+        st.caption("Filtered by type: " + " · ".join(f"`{t}`" for t in scanned_types))
+    else:
+        st.caption("Filtered by type: All business types")
 
     col1, col2, col3 = st.columns(3)
     all_df = pd.DataFrame(businesses)
